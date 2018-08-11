@@ -1,37 +1,81 @@
-/*
-* Arduino Wireless Communication Tutorial
-*     Example 1 - Transmitter Code
-*                
-* by Dejan Nedelkovski, www.HowToMechatronics.com
-* 
-* Library: TMRh20/RF24, https://github.com/tmrh20/RF24/
-*/
+#include <SPI.h>
 #include <nRF24L01.h>
 #include <RF24.h>
 
-RF24 radio(7, 8); // CE, CSN
-const byte addresses[][6] = {"00001", "00002"};
+#define MOTOR_1_DIR_1 7  // ran out of digital pins
+#define MOTOR_1_DIR_2 8 
+#define MOTOR_2_DIR_1 3
+#define MOTOR_2_DIR_2 4
+#define MOTOR_1_SP_PIN 6
+#define MOTOR_2_SP_PIN 5
+
+#define TEMP A0
+#define LIGHT A1
+
+#define DELAY 100
+RF24 radio(9, 10); // CE, CSN
+const byte address[][6] = {"00001","00002"};
+unsigned long prev_send_time;
+unsigned long prev_rec_time;
+short inputs[2] = {0,0};
+
 void setup() {
-  uint_8 tempVal = 0;
-  uint_8 lightVal = 0;
+  Serial.begin(9600);
+  pinMode(MOTOR_1_DIR_1, OUTPUT);
+  pinMode(MOTOR_1_DIR_2, OUTPUT);
+  pinMode(MOTOR_2_DIR_1, OUTPUT);
+  pinMode(MOTOR_2_DIR_2, OUTPUT);
+  pinMode(MOTOR_1_SP_PIN, OUTPUT);
+  pinMode(MOTOR_2_SP_PIN, OUTPUT);
+  digitalWrite(MOTOR_1_DIR_1, HIGH);
+  digitalWrite(MOTOR_1_DIR_2, LOW);
+  digitalWrite(MOTOR_2_DIR_1, HIGH);
+  digitalWrite(MOTOR_2_DIR_2, LOW);
+  analogWrite(MOTOR_1_SP_PIN, 255);
+  analogWrite(MOTOR_2_SP_PIN, 255);
   radio.begin();
-  radio.openWritingPipe(addresses[1]); // 00001
-  radio.openReadingPipe(1, addresses[0]); // 00002
-  radio.setPALevel(RF24_PA_HIGH); //RF24_PA_HIGH, ..MAX, 
+  radio.openWritingPipe(address[0]);
+  radio.openReadingPipe(0, address[1]);
+  radio.setPALevel(RF24_PA_HIGH);
+  prev_send_time = millis();
+  prev_rec_time = prev_send_time + DELAY/2;
 }
 void loop() {
-  radio.startListening();
-  if (radio.available())
-  {
-    radio.read(&controls, sizeof(controls));
-    Serial.println(controls);
+  unsigned long cur_time = millis();
+  if (cur_time - prev_send_time > DELAY){
+    radio.stopListening();
+    sendData();
+    prev_send_time = cur_time;
   }
-  radio.stopListening();
+  else if (cur_time - prev_rec_time > DELAY){
+    radio.startListening();
+    short* inputs = readControls();
+    controlMotors(inputs);
+    prev_rec_time = cur_time;
+    
   }
-  tempVal = analogRead(A0);
-  lightVal = analogRead(A1);
-  uint_8 sensorVals[2] = {tempVal, lightVal};
-  radio.write(&sensorVals, sizeof(sensorVals));
-  delay(500);
+  Serial.print(inputs[0]); Serial.print(' '); Serial.println(inputs[1]); 
+}
+
+void sendData(){
+  short temp = analogRead(TEMP);
+  short light = analogRead(LIGHT);
+  short data[2] = {temp,light};
+  radio.write(&data, sizeof(data));
+}
+
+short* readControls(){
+  short controls[2];
+  radio.read(&controls, sizeof(controls));
+  return controls;
+}
+
+void controlMotors(short* input){
+  // x and y inputs in range (0, 1023)
+  // we want to map that to range (0, 255)
+  // if x > 127, turn right, meaning right motor decreases: (255 - x)
+  // left motor will increase (x)
+  // simply multiply the x values by y/1023
+  // x = input[];
 }
 
