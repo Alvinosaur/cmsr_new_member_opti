@@ -1,51 +1,53 @@
 #include <SPI.h>
-#include <nRF24L01.h>
-#include <RF24.h>
-
-#define CTRL_X_PIN A0
-#define CTRL_Y_PIN A1
+#include "nRF24L01.h"
+#include "RF24.h"
 
 #define DELAY 100
-RF24 radio(7, 8); // CE, CSN
-const byte address[2][6] = {"00001","00002"};
-unsigned long prev_send_time;
-unsigned long prev_rec_time;
-short data[2] = {0,0};
+#define CTRL_X_PIN A0
+#define CTRL_Y_PIN A1
+#define ROLE 1  // User Controls
 
-void setup() {
+const byte address[2][6] = {"00001","00002"};
+short controls[2] = {0, 0};
+short data[2] = {0, 0};
+
+RF24 radio(7, 8);
+
+void setup(void)
+{
   Serial.begin(9600);
   radio.begin();
-  radio.openWritingPipe(address[1]);
-  radio.openReadingPipe(0, address[0]);
-  radio.setPALevel(RF24_PA_HIGH);
-  prev_rec_time = millis();
-  prev_send_time = prev_rec_time + DELAY/2;
+  radio.setRetries(15,15); // increase the delay between retries & # of retries
+  radio.setPayloadSize(sizeof(controls));
+  radio.openWritingPipe(address[ROLE]);
+  radio.openReadingPipe(1,address[ROLE - 1]); // index error if wrong role
+  radio.startListening();
+  radio.printDetails();
 }
 
-void loop() {
-  unsigned long cur_time = millis();
-  if (cur_time - prev_rec_time > DELAY){
-    radio.startListening();
-    short* data = readData();
-    prev_rec_time = cur_time;
-    Serial.print(data[0]); Serial.print(' '); Serial.println(data[1]); 
-  }
-  else if (cur_time - prev_send_time > DELAY){
+void loop(void)
+{
+  // only go through receive/send cycle if can first receive (wait for other side's package first)
+  if ( radio.available() )
+  {
+    readData();
     radio.stopListening();
     sendControls();
-    prev_send_time = cur_time;
+    radio.startListening(); // reset to start checking for package again
   }
+}
+
+void readData(){
+  while ( radio.available() )
+  {
+    radio.read( &data, sizeof(data) );
+  }
+  Serial.print(data[0]); Serial.print(" "); Serial.println(data[1]);
 }
 
 void sendControls(){
   short x_val = analogRead(CTRL_X_PIN);
   short y_val = analogRead(CTRL_Y_PIN);
-  short controls[] = {x_val,y_val};
-  radio.write(&controls, sizeof(controls));
-}
-
-short* readData(){
-  short data[2];
-  radio.read(&data, sizeof(data));
-  return data;
+  short controls[2] = {x_val,y_val};
+  bool success = radio.write(&controls, sizeof(controls));
 }
