@@ -42,7 +42,6 @@ void readData(){
   {
     radio.read( &data, sizeof(data) );
   }
-  Serial.print(data[0]); Serial.print(" "); Serial.println(data[1]);
 }
 
 void sendControls(){
