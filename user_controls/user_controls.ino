@@ -6,8 +6,9 @@
 #define CTRL_X_PIN A0
 #define CTRL_Y_PIN A1
 #define ROLE 1  // User Controls
+#define TEAM 0
 
-const byte address[2][6] = {"00001","00002"};
+byte** address;  // array of two byte ptrs
 short controls[2] = {0, 0};
 short data[2] = {0, 0};
 
@@ -23,6 +24,23 @@ void setup(void)
   radio.openReadingPipe(1,address[ROLE - 1]); // index error if wrong role
   radio.startListening();
   radio.printDetails();
+  address = (byte**)malloc(sizeof(byte*)*2);
+  // print warning if address == NULL
+  switch(TEAM) {
+    case 0:
+     address[0] = (byte*)"00001";
+     address[1] = (byte*)"00002";
+     break;
+
+    case 1:
+     address[0] = (byte*)"00003";
+     address[1] = (byte*)"00004";
+     break;
+
+    default:
+     address[0] = (byte*)"00001";
+     address[1] = (byte*)"00002";
+  }
 }
 
 void loop(void)
